@@ -1,0 +1,73 @@
+{% extends "portfolio/home.html" %} {% block content %}
+<div class="container my-5 text-start" dir="ltr">
+    <div class="row">
+        <div class="col-lg-8">
+            <h2 class="mb-4">Shopping Cart 🛒</h2>
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th class="text-center">Quantity</th>
+                                <th>Price</th>
+                                <th>Total</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in cart %} {% with product=item.product %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if product.image %}
+                                        <img src="{{ product.image.url }}" class="rounded me-3" style="width: 50px; height: 50px; object-fit: cover;"> {% endif %}
+                                        <h6 class="mb-0">{{ product.name }}</h6>
+                                    </div>
+                                </td>
+                                <td class="text-center">{{ item.quantity }}</td>
+                                <td>${{ item.price }}</td>
+                                <td>${{ item.total_price }}</td>
+                                <td>
+                                    <a href="{% url 'shop:cart_remove' product.id %}" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i> Remove
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endwith %} {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5">
+                                    <p class="text-muted">Your cart is currently empty</p>
+                                    <a href="{% url 'shop:product_list' %}" class="btn btn-primary">Start Shopping</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 bg-light p-3">
+                <h4 class="mb-4">Order Summary</h4>
+                <div class="d-flex justify-content-between mb-3">
+                    <span>Subtotal:</span>
+                    <span class="fw-bold text-dark">${{ cart.get_total_price }}</span>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between mb-4">
+                    <span class="h5">Grand Total:</span>
+                    <span class="h5 fw-bold text-success">${{ cart.get_total_price }}</span>
+                </div>
+
+                {% if cart %}
+                <a href="{% url 'shop:order_create' %}" class="btn btn-dark w-100 py-3 mb-2 fw-bold">Checkout</a> {% else %}
+                <button class="btn btn-secondary w-100 py-3 mb-2" disabled>Checkout (Cart Empty)</button> {% endif %}
+
+                <a href="{% url 'shop:product_list' %}" class="btn btn-outline-secondary w-100">Continue Shopping</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

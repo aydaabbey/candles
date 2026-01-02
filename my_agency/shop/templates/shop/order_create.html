@@ -1,0 +1,262 @@
+{% extends "portfolio/home.html" %} {% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+<style>
+    #map {
+        height: 350px;
+        width: 100%;
+        border-radius: 12px;
+        border: 2px solid #dee2e6;
+        z-index: 1;
+    }
+    
+    .payment-method-card {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 2px solid #eee;
+    }
+    
+    .payment-method-card:hover {
+        border-color: #0d6efd;
+        background-color: #f8f9fa;
+    }
+    
+    .payment-check {
+        display: none;
+    }
+    
+    .payment-check:checked+.payment-method-card {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+        box-shadow: 0 0 10px rgba(13, 110, 253, 0.2);
+    }
+    
+    #fpx-bank-container {
+        display: block;
+        /* Visible by default as FPX is the default selection */
+        animation: fadeIn 0.5s;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+<div class="container my-5 text-start" dir="ltr">
+    <div class="row">
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm border-0 sticky-top" style="top: 80px;">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0 py-1"><i class="bi bi-cart-check me-2"></i>Order Summary</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush mb-3">
+                        {% for item in cart %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <div>
+                                <h6 class="my-0">{{ item.product.name }}</h6>
+                                <small class="text-muted">Qty: {{ item.quantity }}</small>
+                            </div>
+                            <span class="text-dark fw-bold">RM {{ item.total_price }}</span>
+                        </li>
+                        {% endfor %}
+                        <li class="list-group-item d-flex justify-content-between bg-light px-2 fw-bold mt-2">
+                            <span>Total Amount</span>
+                            <span class="text-success fs-5">RM {{ cart.get_total_price }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <h2 class="mb-4 fw-bold">Checkout & Delivery 🚚</h2>
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <form method="post" id="order-form">
+                        {% csrf_token %}
+
+                        <h5 class="mb-3 text-primary border-bottom pb-2">Shipping Information</h5>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">First Name</label> {{ form.first_name }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Last Name</label> {{ form.last_name }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email Address</label> {{ form.email }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone Number (WhatsApp)</label> {{ form.phone }}
+                            </div>
+                        </div>
+
+                        <h5 class="mb-3 text-primary border-bottom pb-2">Delivery Location</h5>
+                        <div class="row g-3">
+                            <div class="col-md-12 mb-2">
+                                <label class="form-label">Search Building / Area Name</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text" id="search-location" class="form-control" placeholder="e.g. Pavilion KL, Sunway Pyramid...">
+                                    <button class="btn btn-outline-primary" type="button" id="get-location">
+                                        <i class="bi bi-geo-alt-fill"></i> Locate Me
+                                    </button>
+                                </div>
+                                <div id="location-status" class="text-muted small mt-1"></div>
+                            </div>
+
+                            <div class="col-md-12">
+                                <label class="form-label">Full Address (Street/Unit No)</label> {{ form.address }}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Postcode</label> {{ form.postcode }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">City</label> {{ form.city }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">State</label> {{ form.state }}
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <div id="map"></div>
+                            <p class="small text-muted mt-2 text-center">
+                                <i class="bi bi-info-circle me-1"></i> Drag the red marker to your exact doorstep.
+                            </p>
+                        </div>
+
+                        <h5 class="mt-5 mb-3 text-primary border-bottom pb-2">Payment Method</h5>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <input type="radio" name="payment_method" value="fpx" id="pay_fpx" class="payment-check" checked onchange="toggleBanks()">
+                                <label for="pay_fpx" class="card payment-method-card h-100 p-3 text-center">
+                                    <i class="bi bi-bank fs-2 mb-2 text-primary"></i>
+                                    <div class="fw-bold">FPX</div>
+                                    <small class="text-muted">Banking</small>
+                                </label>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="radio" name="payment_method" value="ewallet" id="pay_ewallet" class="payment-check" onchange="toggleBanks()">
+                                <label for="pay_ewallet" class="card payment-method-card h-100 p-3 text-center">
+                                    <i class="bi bi-qr-code-scan fs-2 mb-2 text-warning"></i>
+                                    <div class="fw-bold">E-Wallet</div>
+                                    <small class="text-muted">TNG/Grab</small>
+                                </label>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="radio" name="payment_method" value="cod" id="pay_cod" class="payment-check" onchange="toggleBanks()">
+                                <label for="pay_cod" class="card payment-method-card h-100 p-3 text-center">
+                                    <i class="bi bi-cash-stack fs-2 mb-2 text-success"></i>
+                                    <div class="fw-bold">COD</div>
+                                    <small class="text-muted">Cash</small>
+                                </label>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="radio" name="payment_method" value="card" id="pay_card" class="payment-check" onchange="toggleBanks()">
+                                <label for="pay_card" class="card payment-method-card h-100 p-3 text-center">
+                                    <i class="bi bi-credit-card fs-2 mb-2 text-danger"></i>
+                                    <div class="fw-bold">Card</div>
+                                    <small class="text-muted">Debit/Credit</small>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="fpx-bank-container" class="mt-4 p-3 bg-light rounded border">
+                            <label class="form-label fw-bold"><i class="bi bi-shield-check me-2 text-success"></i>Select Your Bank</label>
+                            <select name="bank_code" class="form-select">
+                                <option value="MB2U0227" selected>Maybank2u</option>
+                                <option value="BCB0235">CIMB Clicks</option>
+                                <option value="PBB0233">Public Bank</option>
+                                <option value="RHB0218">RHB Bank</option>
+                                <option value="HLB0224">Hong Leong Bank</option>
+                                <option value="BIMB0340">Bank Islam</option>
+                                <option value="AMBB0209">AmBank</option>
+                                <option value="UOB0226">UOB Bank</option>
+                            </select>
+                        </div>
+
+                        <hr class="my-4">
+                        <button class="btn btn-dark w-100 py-3 fw-bold shadow-lg" type="submit">
+                            Confirm Order - RM {{ cart.get_total_price }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    function toggleBanks() {
+        const bankContainer = document.getElementById('fpx-bank-container');
+        const fpxRadio = document.getElementById('pay_fpx');
+        bankContainer.style.display = fpxRadio.checked ? 'block' : 'none';
+    }
+
+    // Leaflet Map Logic
+    var map = L.map('map').setView([3.1390, 101.6869], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    var marker = L.marker([3.1390, 101.6869], {
+        draggable: true
+    }).addTo(map);
+
+    function reverseGeocode(lat, lng) {
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.address) {
+                    const addr = data.address;
+                    document.getElementById('id_address').value = data.display_name;
+                    document.getElementById('id_city').value = addr.city || addr.town || addr.village || '';
+                    document.getElementById('id_postcode').value = addr.postcode || '';
+                    // States can be programmatically matched here if needed
+                }
+            });
+    }
+
+    marker.on('dragend', function() {
+        var pos = marker.getLatLng();
+        reverseGeocode(pos.lat, pos.lng);
+    });
+
+    document.getElementById('get-location').addEventListener('click', function() {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const {
+                latitude,
+                longitude
+            } = pos.coords;
+            map.setView([latitude, longitude], 16);
+            marker.setLatLng([latitude, longitude]);
+            reverseGeocode(latitude, longitude);
+        });
+    });
+
+    // Search for address
+    document.getElementById('search-location').addEventListener('change', function(e) {
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${e.target.value}, Malaysia&limit=1`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.length > 0) {
+                    const lat = data[0].lat;
+                    const lon = data[0].lon;
+                    map.setView([lat, lon], 15);
+                    marker.setLatLng([lat, lon]);
+                    reverseGeocode(lat, lon);
+                }
+            });
+    });
+</script>
+{% endblock %}
